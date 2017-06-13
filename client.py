@@ -24,7 +24,7 @@ def chat_client():
         sys.exit()
 
     print 'Connected to remote host. You can start sending messages'
-    sys.stdout.write('[Me] ');
+    sys.stdout.write('>> ')
     sys.stdout.flush()
 
     while 1:
@@ -40,18 +40,12 @@ def chat_client():
                 if not data:
                     print '\nDisconnected from chat server'
                     sys.exit()
-                else:
-                    # print data
-                    sys.stdout.write(data)
-                    sys.stdout.write('[Me] ');
-                    sys.stdout.flush()
-
             else:
                 # user entered a message
+                sys.stdout.write('>> ')
+                sys.stdout.flush()
                 msg = sys.stdin.readline()
                 s.send(msg)
-                sys.stdout.write('[Me] ');
-                sys.stdout.flush()
 
 
 if __name__ == "__main__":

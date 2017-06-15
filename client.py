@@ -137,12 +137,12 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 
 
 def chat_client():
-    if (len(sys.argv) < 3):
-        print 'Usage : python chat_client.py hostname port'
+    if (len(sys.argv) != 2):
+        print 'Execution format : python client.py [IP_ADRRESS]:[PORT]'
         sys.exit()
 
-    host = sys.argv[1]
-    port = int(sys.argv[2])
+    host = sys.argv[1].split(":")[0]
+    port = int (sys.argv[1].split(":")[1])
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
@@ -153,6 +153,11 @@ def chat_client():
     except:
         print 'Unable to connect'
         sys.exit()
+
+    # Assim que conecta no servidor, o emissor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	
+    # O servidor tem id = 2^16-1 = 65535
+    # envia 1 no id_from pois eh um emissor
+    s.send(make_pkt(3,1,65535,0,"Novo emissor"))
 
     print 'Connected to remote host. You can start sending messages. \n\nINSTRUCTIONS: \n	-Type the destination ID followed by ":" and the message you want to send. \n	-Example: 3:Hello!'
     sys.stdout.write('>> ')
@@ -168,6 +173,10 @@ def chat_client():
             if sock == s:
                 # incoming message from remote server, s
                 data = sock.recv(4096)
+		
+		#if data:
+		#	check_type(data)	
+		
                 if not data:
                     print '\nDisconnected from chat server'
                     sys.exit()
@@ -184,17 +193,27 @@ def chat_client():
 			sys.stderr.write('\nIncorrect format. Follow the instructions. \nSeparate the destination id from the message with ":"\n\n>> ')
 		
 
-'''
-def check_TYP(msg):
-	if msg == 'OI':
-		return 3;
-	elif msg == 'FLW':
-		return 4;
-	elif msg == 'CREQ': 
-		return 6;
-	else: 
-		return 5;
-'''	
+
+def check_TYP(data):
+	msg_type = getTYP(data)
+	
+	# 1 - OK
+	if msg_type == '1':
+		print 'TYP = OK'
+		# se for o primeiro OK, deve conter o identificador desse emissor
+		# pega o numero de identificacao que veio no pacote -> getID_F()
+		# armazena o ID desse emissor para ser usado por todas as mensagens que ele enviar
+		# exibe o ID na tela
+		
+		# se o emissor ja possuir numero de identificacao, nao faz nada, o OK eh so pra falar que a mnsg chegou ao destinatario
+	
+	# 2 - ERRO
+	elif msg_type  == '2':
+		print 'TYP = ERRO'
+		# informa o numero de sequencia e conteudo da mensagem que nao foi enviada corretamente
+
+	else:
+		print ''
 
 
 if __name__ == "__main__":

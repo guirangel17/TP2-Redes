@@ -8,7 +8,7 @@ import struct
 HOST = ''
 SOCKET_LIST = []
 RECV_BUFFER = 4096
-PORT = 9009
+PORT = 0
 
 def getCHK(pkt):
 	CHK = ""
@@ -141,6 +141,12 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	return toSend
 
 def chat_server():
+    if len(sys.argv) != 2:
+        print 'Execution format : python server.py [PORT]'
+        sys.exit()
+
+    PORT = int(sys.argv[1])
+
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((HOST, PORT))
@@ -148,6 +154,8 @@ def chat_server():
 
     # add server socket object to the list of readable connections
     SOCKET_LIST.append(server_socket)
+
+    
 
     print "Chat server started on port " + str(PORT)
 
@@ -161,6 +169,7 @@ def chat_server():
             # a new connection request recieved
             if sock == server_socket:
                 sockfd, addr = server_socket.accept()
+		# acho que esse SOCKET_LIST vai ter que associar um ID para cada socket
                 SOCKET_LIST.append(sockfd)
                 print "Client (%s, %s) connected" % addr
 
@@ -171,8 +180,12 @@ def chat_server():
                 # process data recieved from client,
                 try:
                     # receiving data from the socket.
-                    data = sock.recv(RECV_BUFFER)
-                    if data:
+               	    data = sock.recv(RECV_BUFFER)
+		    
+		    if data:
+			#verifica o parametro tipo das mensagens 
+		        check_type(data)
+		
                         # there is something in the socket
                         broadcast(server_socket, sock, "\r" + '[' + str(sock.getpeername()) + '] ', getMSG(data))
                     else:
@@ -189,6 +202,84 @@ def chat_server():
                     continue
 
     server_socket.close()
+
+
+def check_type (data): 
+	msg_type = getTYP(data)
+	
+	# 1 - OK
+	if msg_type == 1: 
+		# do something
+		print 'TYP = OK'
+	
+	# 2 -ERRO	
+	elif msg_type == 2: 
+		# do something
+		print 'TYP = ERRO'
+
+	# 3 -OI	
+	elif msg_type == 3: 
+		print 'TYP = OI'
+		# o servidor tem que enviar um numero de identificacao ao cliente
+		# se cliente == 1 (emissor):
+		#	ID = entre 1 e 2^12-1 
+		#	armazenar ID na lista de conectados
+		# se cliente == 0 (exibidor):
+		# 	ID = entre 2^12 e 2^13-1
+		#	armazenar ID na lista de conectados
+
+	# 4 -FLW	
+	elif msg_type == 4: 
+		print 'TYP = FLW'
+		# se cliente == emissor:
+		# 	se emissor tiver exibidor associado:
+		#		envia FLW pro exibidor desconecta esse emissor
+		#		recebe OK do exibidor
+		#	senao:
+		#		desconecta emissor
+		#		envia mensagem OK
+
+	# 5 -MSG	
+	elif msg_type == 5: 
+		print 'TYP = MSG'
+		# msg comeca com um inteiro logo apos o cabecalho, indicando o numero de caracteres (C) sendo transmitidos. Depois do inteiro, seguem os bytes da mensangem em ASCII. 
+		# msg = len(msg) + msg
+		
+		# se id_destino eh um emissor (entre 1 e 2^12-1):
+		# 	identifica qual exibidor esta associado a esse emissor
+		# 	envia a mensagem para o exibidor
+		# 	erro: se nao existir exibidor associado ao emissor de destino
+		# se id_destino eh um exibidor (entre 2^12 e 2^13-1):
+		#	envia mensagem para o exibidor
+		#	erro: exibidor inexistente
+		# se id_destino = 0
+		# 	faz broadcast para todos os exibidores conectados
+		# senao 
+		#	erro
+		
+	# 6 -CREQ	
+	elif msg_type == 6: 
+		print 'TYP = CREQ'	
+		# CLIST = numero de clientes conectados + lista de clientes conectados
+			
+		# if id_destino == emissor:
+		# 	identifica exibidor associado a esse emissor
+		# 	envia CLIST para o exibidor associado
+		# 	envia OK para emissor
+		# if id_destinno == exibidor:
+		# 	envia CLIST para exibidor
+		# 	envia OK para emissor
+		# if id_destino == 0:
+		# 	envia CLIST para TODOS exibidores conectados
+
+	# 7 -CLIST	
+	elif msg_type == 7: 
+		print 'TYP = CLIST'
+		# o servidor eh sempre remetente do CLIST, portanto nao deveria recebe-lo 
+		# acho que pode deletar esse IF
+
+	else:
+		print ''
 
 
 # broadcast chat messages to all connected clients

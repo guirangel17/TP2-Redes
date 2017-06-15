@@ -137,12 +137,22 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 
 
 def chat_client():
-    if (len(sys.argv) != 2):
-        print 'Execution format : python client.py [IP_ADRRESS]:[PORT]'
+    if (len(sys.argv) < 2 or len(sys.argv) > 3):
+        print ('Execution format options: \n' + 
+		'$ python sender.py [IP_ADRRESS]:[PORT] \n' +
+		'$ python sender.py [IP_ADRRESS]:[PORT] [ID_EXHIBITOR]' )
         sys.exit()
+    
 
     host = sys.argv[1].split(":")[0]
     port = int (sys.argv[1].split(":")[1])
+
+    if (len (sys.argv) == 3):
+    	entry = sys.argv[2]
+	id_exhibitor = int(entry)
+	if (id_exhibitor < 4096 or id_exhibitor > 8191):
+		print ('ID_EXHIBITOR must be between 4096 and 8191')
+		sys.exit()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
@@ -151,7 +161,7 @@ def chat_client():
     try:
         s.connect((host, port))
     except:
-        print 'Unable to connect'
+        print 'Unable to connect. Check if you tried a valid port.'
         sys.exit()
 
     # Assim que conecta no servidor, o emissor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	
@@ -159,7 +169,13 @@ def chat_client():
     # envia 1 no id_from pois eh um emissor
     s.send(make_pkt(3,1,65535,0,"Novo emissor"))
 
-    print 'Connected to remote host. You can start sending messages. \n\nINSTRUCTIONS: \n	-Type the destination ID followed by ":" and the message you want to send. \n	-Example: 3:Hello!'
+    print ('Connected to remote host. You can start sending messages. \n\n' +
+	'INSTRUCTIONS \n' +    
+ 	'	- Type the destination ID followed by ":" and the message you want to send. \n' + 
+	'		Example: 3:Hello! \n ' +
+	'	- ID = 0 -> broadcast your message. \n' +
+	' 	- Message = "CREQ" -> list all clients connected \n' +
+	' 	- Message = "FLW" -> exit')
     sys.stdout.write('>> ')
     sys.stdout.flush()	
     
@@ -188,11 +204,22 @@ def chat_client():
 		try: 
 			id_to = keyboard.split(":")[0]
 			msg = keyboard.split(":")[1]
-			s.send(make_pkt(5,0,0,0,msg))	
+			
+			typ = def_msg_type(msg.strip())
+		
+			s.send(make_pkt(0,0,0,0,msg))
+			#s.send(make_pkt(typ,id_from,id_to,seq_number,msg))	
+
 		except:
 			sys.stderr.write('\nIncorrect format. Follow the instructions. \nSeparate the destination id from the message with ":"\n\n>> ')
-		
 
+def def_msg_type (msg):
+	if msg == 'FLW':
+		return 4
+	elif msg == 'CREQ':
+		return 6
+	else:
+		return 5
 
 def check_TYP(data):
 	msg_type = getTYP(data)

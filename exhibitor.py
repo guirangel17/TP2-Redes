@@ -136,14 +136,11 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 
 def chat_exhibitor():
     if len(sys.argv) != 2:
-        print 'Exectuion format : python exhibitor.py [IP_ADDRESS]:[PORT]'
+        print 'Exectuion format: $ python exhibitor.py [IP_ADDRESS]:[PORT]'
         sys.exit()
    
     host = sys.argv[1].split(":")[0]
     port = int (sys.argv[1].split(":")[1])
-
-    print host 
-    print port
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
@@ -152,7 +149,7 @@ def chat_exhibitor():
     try:
         s.connect((host, port))
     except:
-        print 'Unable to connect'
+        print 'Unable to connect. Check if you tried a valid port.'
         sys.exit()
 
     # Assim que conecta no servidor, o exibidor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	

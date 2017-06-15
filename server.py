@@ -10,6 +10,9 @@ SOCKET_LIST = []
 RECV_BUFFER = 4096
 PORT = 0
 
+ID_sender = 0
+ID_exhibitor = 4095
+
 def getCHK(pkt):
 	CHK = ""
 	i = 0
@@ -142,7 +145,7 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 
 def chat_server():
     if len(sys.argv) != 2:
-        print 'Execution format : python server.py [PORT]'
+        print 'Execution format: $ python server.py [PORT]'
         sys.exit()
 
     PORT = int(sys.argv[1])
@@ -154,7 +157,6 @@ def chat_server():
 
     # add server socket object to the list of readable connections
     SOCKET_LIST.append(server_socket)
-
     
 
     print "Chat server started on port " + str(PORT)
@@ -183,6 +185,9 @@ def chat_server():
                	    data = sock.recv(RECV_BUFFER)
 		    
 		    if data:
+			# Ao receber qualquer mensagem, o servidor deve primeiro confirmar que o identificador de origem corresponde ao do cliente que a enviou verificando se o cliente indicado na origem eh o cliente que esta conectado no socket onde a mensagem foi recebida. Esse teste evita que um cliente se passe por outro -> TEM QUE IMPLEMENTAR ISSO			
+
+
 			#verifica o parametro tipo das mensagens 
 		        check_type(data)
 		
@@ -203,76 +208,145 @@ def chat_server():
 
     server_socket.close()
 
+'''
+def id_ref (ID): 
+	# emissor
+	if ID >= 1 and ID <= 4095:
+		return 1;
+	# exibidor
+	elif ID >= 4096 and ID <= 8191:
+		return 0
+'''
 
 def check_type (data): 
+	msg = getMSG(data)
 	msg_type = getTYP(data)
+	id_from = getID_F(data)
+	id_to = getID_T(data)
+	id_to = getSQN(data)
+		
 	
 	# 1 - OK
 	if msg_type == 1: 
 		# do something
 		print 'TYP = OK'
 	
-	# 2 -ERRO	
+	# 2 - ERRO	
 	elif msg_type == 2: 
 		# do something
 		print 'TYP = ERRO'
 
-	# 3 -OI	
+	# 3 - OI	
 	elif msg_type == 3: 
 		print 'TYP = OI'
-		# o servidor tem que enviar um numero de identificacao ao cliente
-		# se cliente == 1 (emissor):
-		#	ID = entre 1 e 2^12-1 
-		#	armazenar ID na lista de conectados
-		# se cliente == 0 (exibidor):
-		# 	ID = entre 2^12 e 2^13-1
-		#	armazenar ID na lista de conectados
+		
+		# exibidor
+		if id_from == 0:
+			ID_exhibitor = ID_exhibitor+1
+			pkt_send = make_pkt(1, 65535, ID_exhibitor, sqNumber, "new_id")
 
-	# 4 -FLW	
+			# registrar exibidor na lista de conectados
+		
+		# emissor ja tem definido a qual exibidor ira se associar
+		elif id_from > 4096 and id_from < 8191:
+			ID_sender = ID_sender+1
+			pkt_send = make_pkt(1, 65535, ID_sender, sqNumber, "new_id")
+
+			# veificar se o exibidor escolhido (id_from) ja possui conexao
+			# associar emissor a esse exibidor especifico na lista de conectados
+		
+		# emissor sem exibidor 
+		else:
+			ID_sender = ID_sender+1
+			pkt_send = make_pkt(1, 65535, ID_sender, sqNumber, "new_id")
+
+			# registrar emissor na lista de conectados
+		 
+
+	# 4 - FLW	
 	elif msg_type == 4: 
 		print 'TYP = FLW'
-		# se cliente == emissor:
-		# 	se emissor tiver exibidor associado:
-		#		envia FLW pro exibidor desconecta esse emissor
-		#		recebe OK do exibidor
-		#	senao:
-		#		desconecta emissor
-		#		envia mensagem OK
+		
+		# teho umas duvidas nesse aqui. 
+		# - o emissor pode desconectar um exibidor?
+		# - tenho que processar o id_to vindo do emissor?
 
-	# 5 -MSG	
+		# se emissor (id_from) tiver exibidor associado (id_exhibitor) na lista:
+		#	envia FLW pro exibidor desconectar o emissor	
+		#	pkt_send = make_pkt(4, id_from, id_exhibitor, sqNumber, "FLW")
+		# senao: 
+		# 	remove emissor da lista de conectados
+		# 	envia mnsg OK para emissor
+		# 	pkt_send = make_pkt(1, 65535, id_from, sqNumber, "OK")
+
+	# 5 - MSG	
 	elif msg_type == 5: 
 		print 'TYP = MSG'
 		# msg comeca com um inteiro logo apos o cabecalho, indicando o numero de caracteres (C) sendo transmitidos. Depois do inteiro, seguem os bytes da mensangem em ASCII. 
 		# msg = len(msg) + msg
 		
-		# se id_destino eh um emissor (entre 1 e 2^12-1):
-		# 	identifica qual exibidor esta associado a esse emissor
-		# 	envia a mensagem para o exibidor
-		# 	erro: se nao existir exibidor associado ao emissor de destino
-		# se id_destino eh um exibidor (entre 2^12 e 2^13-1):
-		#	envia mensagem para o exibidor
-		#	erro: exibidor inexistente
-		# se id_destino = 0
-		# 	faz broadcast para todos os exibidores conectados
-		# senao 
-		#	erro
+
+		# destino: emissor		
+		if id_to >= 1 and id_to <= 4095:
+			# se existir exibidor associado na lista de conectados (id_exhibitor):
+			#	envia mnsg para exibidor associado
+			# 	pkt_send = make_pkt(5, id_from, id_exhibitor, sqNumber, "ERRO")	
+			# senao:
+			# 	envia mnsg ERRO para emissor de origem
+			# 	pkt_send = make_pkt(2, 65535, id_from, sqNumber, msg)
+			print ''
 		
-	# 6 -CREQ	
+		# destino: exibidor
+		elif id_to >= 4096 and id_to <= 8191:
+			# se existir exibidor (id_to) na lista de conectados: 
+			# 	pkt_send = make_pkt(5, id_from, id_to, sqNumber, msg)
+			# senao:
+			# 	envia mnsg ERRO para emissor de origem
+ 			# 	pkt_send = make_pkt(2, 65535, id_from, sqNumber, "ERRO")
+			print ''
+
+		# destino: broadcast
+		elif id_to == 0: 
+			# faz broadcast para todos exibidores conectados
+			# for (list_exib in lista_exibidores):
+			# 	pkt_send = make_pkt(5, id_from, list_exib, sqNumber, msg)
+			print ''
+
+		else: 
+			# error
+			# pkt_send = make_pkt(2, 65535, id_from, sqNumber, "ERRO")
+			print ''
+					
+	# 6 - CREQ	
 	elif msg_type == 6: 
 		print 'TYP = CREQ'	
 		# CLIST = numero de clientes conectados + lista de clientes conectados
 			
-		# if id_destino == emissor:
-		# 	identifica exibidor associado a esse emissor
-		# 	envia CLIST para o exibidor associado
-		# 	envia OK para emissor
-		# if id_destinno == exibidor:
-		# 	envia CLIST para exibidor
-		# 	envia OK para emissor
-		# if id_destino == 0:
-		# 	envia CLIST para TODOS exibidores conectados
+		if id_to >=1 and id_to <= 4095:
+			# se existir exibidor associado na lista de conectados (id_exhibitor):
+			#	envia CLIST para exibidor associado
+			# 	pkt_send = make_pkt(7, id_from, id_exhibitor, sqNumber, CLIST)
+			# 	envia OK para emissor
+			# 	pkt_send = make_pkt(1, 65535, id_from, sqNumber, "OK")	
+			# senao:
+			# 	envia mnsg ERRO para emissor de origem
+			# 	pkt_send = make_pkt(2, 65535, id_from, sqNumber, msg)
+			print ''
+	
+		elif id_to >= 4096 and id_to <= 8191:
+			# envia CLIST para exibidor
+			# pkt_send = make_pkt(7, id_from, id_exhibitor, sqNumber, CLIST)
+			# envia OK para emissor
+			# pkt_send = make_pkt(1, 65535, id_from, sqNumber, "OK")
+			print ''	
 
-	# 7 -CLIST	
+		elif id_to == 0:
+			# faz broadcast de CLIST para TODOS exibidores
+			# for (list_exib in lista_exibidores):
+			# 	pkt_send = make_pkt(7, id_from, id_exhibitor, sqNumber, CLIST)
+			print ''
+		
+	# 7 - CLIST	
 	elif msg_type == 7: 
 		print 'TYP = CLIST'
 		# o servidor eh sempre remetente do CLIST, portanto nao deveria recebe-lo 

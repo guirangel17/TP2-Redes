@@ -104,7 +104,7 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	ID_F = toBytes(idFrom)
 	ID_T = toBytes(idTo)
 	SQN = toBytes(sqNumber)
-	
+
 	msg = map(lambda x: ord(x), msg)
 	msg = struct.pack("%dB" % len(msg), *msg)
 
@@ -176,7 +176,20 @@ def chat_client():
                 sys.stdout.write('>> ')
                 sys.stdout.flush()
                 msg = sys.stdin.readline()
-                s.send(make_pkt(0,0,0,0,msg))
+		typ = check_TYP(msg.strip())
+		s.send(make_pkt(typ,0,0,0,msg))
+
+def check_TYP(msg):
+	if msg == 'OI':
+		return 3;
+	elif msg == 'FLW':
+		return 4;
+	elif msg == 'CREQ': 
+		return 6;
+	else: 
+		return 5;	
+	
+
 
 if __name__ == "__main__":
     sys.exit(chat_client())

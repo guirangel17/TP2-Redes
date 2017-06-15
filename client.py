@@ -154,10 +154,10 @@ def chat_client():
         print 'Unable to connect'
         sys.exit()
 
-    print 'Connected to remote host. You can start sending messages'
+    print 'Connected to remote host. You can start sending messages. \n\nINSTRUCTIONS: \n	-Type the destination ID followed by ":" and the message you want to send. \n	-Example: 3:Hello!'
     sys.stdout.write('>> ')
-    sys.stdout.flush()
-
+    sys.stdout.flush()	
+    
     while 1:
         socket_list = [sys.stdin, s]
 
@@ -173,12 +173,18 @@ def chat_client():
                     sys.exit()
             else:
                 # user entered a message
-                sys.stdout.write('>> ')
+		sys.stdout.write('>> ')
                 sys.stdout.flush()
-                msg = sys.stdin.readline()
-		typ = check_TYP(msg.strip())
-		s.send(make_pkt(typ,0,0,0,msg))
+                keyboard = sys.stdin.readline()
+		try: 
+			id_to = keyboard.split(":")[0]
+			msg = keyboard.split(":")[1]
+			s.send(make_pkt(5,0,0,0,msg))	
+		except:
+			sys.stderr.write('\nIncorrect format. Follow the instructions. \nSeparate the destination id from the message with ":"\n\n>> ')
+		
 
+'''
 def check_TYP(msg):
 	if msg == 'OI':
 		return 3;
@@ -187,8 +193,8 @@ def check_TYP(msg):
 	elif msg == 'CREQ': 
 		return 6;
 	else: 
-		return 5;	
-	
+		return 5;
+'''	
 
 
 if __name__ == "__main__":

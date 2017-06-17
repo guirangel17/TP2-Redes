@@ -7,9 +7,10 @@ import struct
 
 '''
 Formato do quadro:
-SYNC SYNC CHK LEN TYP ID_F ID_T SQN MSG 
-4    4    2   2   2   2    2    2
+SYNC SYNC CHK TYP ID_F ID_T SQN LEN MSG 
+4    4	  2   2   2    2	  2	  2
 '''
+
 def getCHK(pkt):
 	CHK = ""
 	i = 0
@@ -20,55 +21,55 @@ def getCHK(pkt):
 
 	return CHK
 
-def getLEN(pkt):
-	LEN = ""
-	i = 0
-	for chunk in pkt:
-		if i == 10 or i == 11:
-			LEN = LEN + chunk
-		i = i + 1
-
-	return LEN
-
 def getTYP(pkt):
 	TYP = ""
 	i = 0
 	for chunk in pkt:
-		if i == 12 or i == 13:
+		if i == 10 or i == 11:
 			TYP = TYP + chunk
 		i = i + 1
 
-	return TYP
+	return int(toString(TYP),16)
 
 def getID_F(pkt):
 	ID_F = ""
 	i = 0
 	for chunk in pkt:
-		if i == 14 or i == 15:
+		if i == 12 or i == 13:
 			ID_F = ID_F + chunk
 		i = i + 1
 
-	return ID_F
+	return int(toString(ID_F),16)
 
 def getID_T(pkt):
 	ID_T = ""
 	i = 0
 	for chunk in pkt:
-		if i == 16 or i == 17:
+		if i == 14 or i == 15:
 			ID_T = ID_T + chunk
 		i = i + 1
 
-	return ID_T
+	return int(toString(ID_T),16)
 
 def getSQN(pkt):
 	SQN = ""
 	i = 0
 	for chunk in pkt:
-		if i == 18 or i == 19:
+		if i == 16 or i == 17:
 			SQN = SQN + chunk
 		i = i + 1
 
-	return SQN
+	return int(toString(SQN),16)
+
+def getLEN(pkt):
+	LEN = ""
+	i = 0
+	for chunk in pkt:
+		if i == 18 or i == 19:
+			LEN = LEN + chunk
+		i = i + 1
+
+	return int(toString(LEN),16)
 
 def getMSG(pkt):
 	MSG = ""
@@ -95,6 +96,9 @@ def toBytes(var):
 	toStr = format(var, '04x')
 	return struct.pack('B',int(toStr[0]+toStr[1],16)) + struct.pack('B',int(toStr[2]+toStr[3],16))
 
+def toString(data):
+	return ''.join('%02X' % ord(x) for x in data)
+
 def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	SYNC = '\xDC\xC0\x23\xC2'
 	CHK = '\x00\x00'
@@ -107,10 +111,10 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	msg = map(lambda x: ord(x), msg)
 	msg = struct.pack("%dB" % len(msg), *msg)
 
-	pkt = SYNC + SYNC + CHK + LEN + TYP + ID_F + ID_T + SQN + msg
+	pkt = SYNC + SYNC + CHK + TYP + ID_F + ID_T + SQN + LEN + msg
 	
 	if len(msg) % 2 != 0:
-		chk = "%04x" % checksum(SYNC + SYNC + CHK + LEN + TYP + ID_F + ID_T + SQN + '\x00' + '\x00' + msg)
+		chk = "%04x" % checksum(SYNC + SYNC + CHK + TYP + ID_F + ID_T + SQN + '\x00' + LEN + msg)
 	else:
 		chk = "%04x" % checksum(pkt)
 
@@ -135,55 +139,64 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	return toSend
 
 def chat_exhibitor():
-    if len(sys.argv) != 2:
-        print 'Exectuion format: $ python exhibitor.py [IP_ADDRESS]:[PORT]'
-        sys.exit()
+	if len(sys.argv) != 2:
+		print 'Exectuion format: $ python exhibitor.py [IP_ADDRESS]:[PORT]'
+		sys.exit()
    
-    host = sys.argv[1].split(":")[0]
-    port = int (sys.argv[1].split(":")[1])
+	host = sys.argv[1].split(":")[0]
+	port = int (sys.argv[1].split(":")[1])
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(2)
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.settimeout(2)
 
-    # connect to remote host
-    try:
-        s.connect((host, port))
-    except:
-        print 'Unable to connect. Check if you tried a valid port.'
-        sys.exit()
+	# connect to remote host
+	try:
+		s.connect((host, port))
+	except:
+		print 'Unable to connect. Check if you tried a valid port.'
+		sys.exit()
 
-    # Assim que conecta no servidor, o exibidor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	
-    # O servidor tem id = 2^16-1 = 65535
-    # Envia 0 no id_from pois eh um exibidor
-    # s.send(make_pkt(3,0,65535,0,"Novo exibidor"))
+	SQN = 0
 
+	# Assim que conecta no servidor, o exibidor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	
+	# O servidor tem id = 2^16-1 = 65535
+	# Envia 0 no id_from pois eh um exibidor
+	s.send(make_pkt(3,0,65535,SQN,"Novo exibidor"))
 
-    print 'Exhibitor connected to remote host.'
-    sys.stdout.flush()
+	handshake = s.recv(1024)
+	typMsg = getTYP(handshake)
+	myID = getID_T(handshake)
 
-    while 1:
-        socket_list = [sys.stdin, s]
+	if typMsg == 2:
+		print 'Error. Sequence number: ' + str(getSQN(handshake)) + ". Message: " + getMSG(handshake)
+	
+	if typMsg == 1:
+		print 'Exhibitor connected to remote host as client ID #' + str(myID) 
 
-        # Get the list sockets which are readable
-        ready_to_read, ready_to_write, in_error = select.select(socket_list, [], [])
+		sys.stdout.flush()
 
-        for sock in ready_to_read:
-            if sock == s:
-                # incoming message from remote server, s
-                data = sock.recv(4096)
+		while 1:
+			socket_list = [sys.stdin, s]
+
+			# Get the list sockets which are readable
+			ready_to_read, ready_to_write, in_error = select.select(socket_list, [], [])
+
+			for sock in ready_to_read:
+				if sock == s:
+					# incoming message from remote server, s
+					data = sock.recv(4096)
 		
-		if data:
-		    check_type(data)
-		
-                if not data:
-                    print '\nDisconnected from chat server'
-                    sys.exit()
-                else:
-                    sys.stdout.write(getMSG(data))
-                    sys.stdout.flush()
+					if not data:
+						print '\nDisconnected from chat server'
+						sys.exit()
+					else:
+						sys.stdout.write(getMSG(data))
+						sys.stdout.flush()
 
-            else:
-                sys.stdout.flush()
+				else:
+					sys.stdout.flush()
+
+'''
 
 def check_type(data):
 	msg_type = getTYP(data)
@@ -245,8 +258,8 @@ def check_type(data):
 	
 	else:
 		print ''
-
+'''
 
 
 if __name__ == "__main__":
-    sys.exit(chat_exhibitor())
+	sys.exit(chat_exhibitor())

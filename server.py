@@ -13,6 +13,12 @@ PORT = 0
 ID_sender = 0
 ID_exhibitor = 4095
 
+'''
+Formato do quadro:
+SYNC SYNC CHK TYP ID_F ID_T SQN LEN MSG 
+4    4	  2   2   2    2	  2	  2
+'''
+
 def getCHK(pkt):
 	CHK = ""
 	i = 0
@@ -23,55 +29,55 @@ def getCHK(pkt):
 
 	return CHK
 
-def getLEN(pkt):
-	LEN = ""
-	i = 0
-	for chunk in pkt:
-		if i == 10 or i == 11:
-			LEN = LEN + chunk
-		i = i + 1
-
-	return LEN
-
 def getTYP(pkt):
 	TYP = ""
 	i = 0
 	for chunk in pkt:
-		if i == 12 or i == 13:
+		if i == 10 or i == 11:
 			TYP = TYP + chunk
 		i = i + 1
 
-	return TYP
+	return int(toString(TYP),16)
 
 def getID_F(pkt):
 	ID_F = ""
 	i = 0
 	for chunk in pkt:
-		if i == 14 or i == 15:
+		if i == 12 or i == 13:
 			ID_F = ID_F + chunk
 		i = i + 1
 
-	return ID_F
+	return int(toString(ID_F),16)
 
 def getID_T(pkt):
 	ID_T = ""
 	i = 0
 	for chunk in pkt:
-		if i == 16 or i == 17:
+		if i == 14 or i == 15:
 			ID_T = ID_T + chunk
 		i = i + 1
 
-	return ID_T
+	return int(toString(ID_T),16)
 
 def getSQN(pkt):
 	SQN = ""
 	i = 0
 	for chunk in pkt:
-		if i == 18 or i == 19:
+		if i == 16 or i == 17:
 			SQN = SQN + chunk
 		i = i + 1
 
-	return SQN
+	return int(toString(SQN),16)
+
+def getLEN(pkt):
+	LEN = ""
+	i = 0
+	for chunk in pkt:
+		if i == 18 or i == 19:
+			LEN = LEN + chunk
+		i = i + 1
+
+	return int(toString(LEN),16)
 
 def getMSG(pkt):
 	MSG = ""
@@ -98,11 +104,8 @@ def toBytes(var):
 	toStr = format(var, '04x')
 	return struct.pack('B',int(toStr[0]+toStr[1],16)) + struct.pack('B',int(toStr[2]+toStr[3],16))
 
-'''
-Formato do quadro:
-SYNC SYNC CHK LEN TYP ID_F ID_T SQN MSG 
-4    4    2   2   2   2    2    2
-'''
+def toString(data):
+	return ''.join('%02X' % ord(x) for x in data)
 
 def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	SYNC = '\xDC\xC0\x23\xC2'
@@ -116,10 +119,10 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	msg = map(lambda x: ord(x), msg)
 	msg = struct.pack("%dB" % len(msg), *msg)
 
-	pkt = SYNC + SYNC + CHK + LEN + TYP + ID_F + ID_T + SQN + msg
+	pkt = SYNC + SYNC + CHK + TYP + ID_F + ID_T + SQN + LEN + msg
 	
 	if len(msg) % 2 != 0:
-		chk = "%04x" % checksum(SYNC + SYNC + CHK + LEN + TYP + ID_F + ID_T + SQN + '\x00' + msg)
+		chk = "%04x" % checksum(SYNC + SYNC + CHK + TYP + ID_F + ID_T + SQN + '\x00' + LEN + msg)
 	else:
 		chk = "%04x" % checksum(pkt)
 
@@ -144,69 +147,107 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 	return toSend
 
 def chat_server():
-    if len(sys.argv) != 2:
-        print 'Execution format: $ python server.py [PORT]'
-        sys.exit()
+	if len(sys.argv) != 2:
+		print 'Execution format: $ python server.py [PORT]'
+		sys.exit()
 
-    PORT = int(sys.argv[1])
+	PORT = int(sys.argv[1])
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen(10)
+	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+	server_socket.bind((HOST, PORT))
+	server_socket.listen(10)
 
-    # add server socket object to the list of readable connections
-    SOCKET_LIST.append(server_socket)
-    
+	# Add server socket object to the list of readable connections
+	SOCKET_LIST.append(server_socket)
+	
 
-    print "Chat server started on port " + str(PORT)
+	print "Chat server started on port " + str(PORT)
 
-    while 1:
+	emissorSockets = {} # IDs from 1 to 2047
+	exibidorSockets = {} # IDs from 2048 to 4096
 
-        # get the list sockets which are ready to be read through select
-        # 4th arg, time_out  = 0 : poll and never block
-        ready_to_read, ready_to_write, in_error = select.select(SOCKET_LIST, [], [], 0)
+	exibidorAssociado = {} # Dicionario onde cada item representa um emissor e o valor correspondente o exibidor associado
+	emissorAssociado = {} # Contrario do dicionario acima
 
-        for sock in ready_to_read:
-            # a new connection request recieved
-            if sock == server_socket:
-                sockfd, addr = server_socket.accept()
-		# acho que esse SOCKET_LIST vai ter que associar um ID para cada socket
-                SOCKET_LIST.append(sockfd)
-                print "Client (%s, %s) connected" % addr
+	while 1:
 
-                broadcast(server_socket, sockfd, "[%s:%s]"% addr, "entered our chatting room\n")
+		# Get the list sockets which are ready to be read through select
+		# 4th arg, time_out  = 0 : poll and never block
+		ready_to_read, ready_to_write, in_error = select.select(SOCKET_LIST, [], [], 0)
 
-            # a message from a client, not a new connection
-            else:
-                # process data recieved from client,
-                try:
-                    # receiving data from the socket.
-               	    data = sock.recv(RECV_BUFFER)
-		    
-		    if data:
-			# Ao receber qualquer mensagem, o servidor deve primeiro confirmar que o identificador de origem corresponde ao do cliente que a enviou verificando se o cliente indicado na origem eh o cliente que esta conectado no socket onde a mensagem foi recebida. Esse teste evita que um cliente se passe por outro -> TEM QUE IMPLEMENTAR ISSO			
+		for sock in ready_to_read:
+			# A new connection request recieved
+			if sock == server_socket:
+				sockfd, addr = server_socket.accept()
+				SOCKET_LIST.append(sockfd)
+				
 
+			# A message from a client, not a new connection
+			else:
+				try:
+					# Receiving data from the socket
+					data = sock.recv(RECV_BUFFER)
 
-			#verifica o parametro tipo das mensagens 
-		        check_type(data)
-		
-                        # there is something in the socket
-                        broadcast(server_socket, sock, "\r" + '[' + str(sock.getpeername()) + '] ', getMSG(data))
-                    else:
-                        # remove the socket that's broken
-                        if sock in SOCKET_LIST:
-                            SOCKET_LIST.remove(sock)
+					if data:
+						# Ao receber qualquer mensagem, o servidor deve primeiro confirmar que o identificador de origem corresponde ao do cliente que a enviou verificando se o cliente indicado na origem eh o cliente que esta conectado no socket onde a mensagem foi recebida. Esse teste evita que um cliente se passe por outro -> TEM QUE IMPLEMENTAR ISSO			
 
-                        # at this stage, no data means probably the connection has been broken
-                        broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
+						# ID = 3 (OI) 
+						if getTYP(data) == 3:
+							# Conexao recebida de um exibidor
+							if getID_F(data) == 0:
+								exibidorSockets[len(exibidorSockets)+4096] = sock
+								print "Exibidor ID # " + str(len(exibidorSockets)+4095) + " conectado"
 
-                        # exception
-                except:
-                    broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
-                    continue
+								sock.send(make_pkt(1,65535,len(exibidorSockets)+4095,getSQN(data),""))
 
-    server_socket.close()
+							# Conexao recebida de um emissor
+							else:
+								if getID_F(data) >= 4096 and getID_F(data) <= 8191:
+									if getID_F(data) in exibidorSockets:
+										emissorSockets[len(emissorSockets)+1] = sock
+										print "Emissor ID # " + str(len(emissorSockets)) + " conectado e associado com o Exibidor ID # " + str(getID_F(data))
+
+										exibidorAssociado[len(emissorSockets)] = getID_F(data)
+										emissorAssociado[getID_F(data)] = len(emissorSockets)
+
+										sock.send(make_pkt(1,65535,len(emissorSockets),getSQN(data),""))
+
+									else:
+										# Caso um novo emissor esteja tentando se associar a um exibidor nao existente, erro, retornando o mesmo id que desejava se associar
+										sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao existente"))
+
+								else:
+									emissorSockets[len(emissorSockets)+1] = sock
+									print "Emissor ID # " + str(len(emissorSockets)) + " conectado"
+
+									sock.send(make_pkt(1,65535,len(emissorSockets),getSQN(data),""))
+
+						# ID = 5 (MSG)
+						if getTYP(data) == 5:
+							if getID_T(data) == 0:
+								broadcast(server_socket, sock, "\r" + '[' + str(sock.getpeername()) + '] ', getMSG(data))
+							else:
+								if exibidorAssociado[getID_T(data)] in exibidorSockets:
+									exibidorSockets[exibidorAssociado[getID_T(data)]].send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), getMSG(data)))
+								else:
+									# o emissor nao possui exibidor associado
+									sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao associado"))
+
+					else:
+						# remove the socket that's broken
+						if sock in SOCKET_LIST:
+							SOCKET_LIST.remove(sock)
+
+						# at this stage, no data means probably the connection has been broken
+						broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
+
+				# exception
+				except:
+					broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
+					continue
+
+	server_socket.close()
 
 '''
 def id_ref (ID): 
@@ -216,15 +257,6 @@ def id_ref (ID):
 	# exibidor
 	elif ID >= 4096 and ID <= 8191:
 		return 0
-'''
-
-def check_type (data): 
-	msg = getMSG(data)
-	msg_type = getTYP(data)
-	id_from = getID_F(data)
-	id_to = getID_T(data)
-	id_to = getSQN(data)
-		
 	
 	# 1 - OK
 	if msg_type == 1: 
@@ -355,21 +387,23 @@ def check_type (data):
 	else:
 		print ''
 
+'''
+
 
 # broadcast chat messages to all connected clients
 def broadcast(server_socket, sock, ID_F, message):
-    for socket in SOCKET_LIST:
-        # send the message only to peer
-        if socket != server_socket and socket != sock:
-            try:
-                socket.send(make_pkt(0,0,0,0,ID_F+message))
-            except:
-                # broken socket connection
-                socket.close()
-                # broken socket, remove it
-                if socket in SOCKET_LIST:
-                    SOCKET_LIST.remove(socket)
+	for socket in SOCKET_LIST:
+		# send the message only to peer
+		if socket != server_socket and socket != sock:
+			try:
+				socket.send(make_pkt(0,0,0,0,ID_F+message))
+			except:
+				# broken socket connection
+				socket.close()
+				# broken socket, remove it
+				if socket in SOCKET_LIST:
+					SOCKET_LIST.remove(socket)
 
 
 if __name__ == "__main__":
-    sys.exit(chat_server())
+	sys.exit(chat_server())

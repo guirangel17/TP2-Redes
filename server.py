@@ -233,20 +233,25 @@ def chat_server():
 								SOCKET_LIST.remove(sock)
 							sock.close()
 
-							broadcast(server_socket, sock, "Client (%s, %s)" % addr, "is offline\n")
+							broadcast(server_socket, sock, data, "Client is offline\n")
 
 
 						# ID = 5 (MSG)
 						if getTYP(data) == 5:
 							if getID_T(data) == 0:
-								broadcast(server_socket, sock, "\r" + '[' + str(sock.getpeername()) + '] ', getMSG(data))
+								broadcast(server_socket, sock, data, getMSG(data))
 							else:
-								if exibidorAssociado[getID_T(data)] in exibidorSockets:
-									exibidorSockets[exibidorAssociado[getID_T(data)]].send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), getMSG(data)))
+								if getID_T(data) in exibidorAssociado:
+									if exibidorAssociado[getID_T(data)] in exibidorSockets:
+										exibidorSockets[exibidorAssociado[getID_T(data)]].send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), getMSG(data)))
 
 								else:
-									# o emissor nao possui exibidor associado
-									sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao associado"))
+									if getID_T(data) >= 4096 and getID_T(data) <= 8191:
+										exibidorSockets[getID_T(data)].send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), getMSG(data)))
+									else:
+										# o emissor nao possui exibidor associado
+										sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao associado"))
+								
 
 
 						# ID = 6 (CREQ)
@@ -255,7 +260,7 @@ def chat_server():
 
 						# ID = 7 (CLIST)
 						if getTYP(data) == 7:
-							# Só será usando quando um CREQ é chamado
+							# So sera usando quando um CREQ e chamado
 							'''
 							print "o servidor identifiou o clist"
 							numberOfConnectedClients = len(exibidorSockets) + len(emissorSockets)
@@ -268,11 +273,11 @@ def chat_server():
 							SOCKET_LIST.remove(sock)
 
 						# at this stage, no data means probably the connection has been broken
-						broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
+						broadcast(server_socket, sock, data, "Client is offline\n")
 
 				# exception
 				except:
-					broadcast(server_socket, sock, "Client (%s, %s)"% addr, "is offline\n")
+					broadcast(server_socket, sock, data, "Client is offline\n")
 					continue
 
 	server_socket.close()
@@ -419,12 +424,12 @@ def id_ref (ID):
 
 
 # broadcast chat messages to all connected clients
-def broadcast(server_socket, sock, ID_F, message):
+def broadcast(server_socket, sock, data, message):
 	for socket in SOCKET_LIST:
 		# send the message only to peer
 		if socket != server_socket and socket != sock:
 			try:
-				socket.send(make_pkt(0,0,0,0,ID_F+message))
+				socket.send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), message))
 			except:
 				# broken socket connection
 				socket.close()

@@ -190,8 +190,14 @@ def chat_exhibitor():
 						print '\nDisconnected from chat server'
 						sys.exit()
 					else:
-						sys.stdout.write("Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))
-						sys.stdout.flush()
+						if getTYP(data) == 5:
+							sys.stdout.write(
+								"Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))
+							sys.stdout.flush()
+
+						elif getTYP(data) == 7:
+							sys.stdout.write(getMSG(data))
+							sys.stdout.flush()
 
 				else:
 					sys.stdout.write("Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))

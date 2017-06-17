@@ -212,10 +212,13 @@ def chat_client():
 						SQN = SQN + 1
 						s.send(make_pkt(4, int(myID), 65535, int(SQN), ""))
 
-					elif keyboard.rstrip("\n") == "CREQ":
-						print "creq"
-						SQN = SQN + 1
-						s.send(make_pkt(6, int(myID), 65535, int(SQN), "Quero CLIST BITCHES"))
+					elif keyboard.split(":")[0] == "CREQ":
+						try:
+							id_to = keyboard.split(":")[1]
+							SQN = SQN + 1
+							s.send(make_pkt(6, int(myID), int(id_to), int(SQN), ""))
+						except Exception as e:
+							sys.stderr.write('\nIncorrect format. Follow the instructions.\n\n>> ')
 
 					else:
 						try:

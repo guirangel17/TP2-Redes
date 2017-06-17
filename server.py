@@ -235,7 +235,6 @@ def chat_server():
 
 							broadcast(server_socket, sock, data, "Client is offline\n")
 
-
 						# ID = 5 (MSG)
 						if getTYP(data) == 5:
 							if getID_T(data) == 0:
@@ -251,21 +250,38 @@ def chat_server():
 									else:
 										# o emissor nao possui exibidor associado
 										sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao associado"))
-								
 
 
 						# ID = 6 (CREQ)
 						if getTYP(data) == 6:
-							print "creq - definir ainda o que fazer"
+							# Mandando ok para o emissor
+							sock.send(make_pkt(1, 65535, getID_F(data), getSQN(data), ""))
 
-						# ID = 7 (CLIST)
-						if getTYP(data) == 7:
-							# So sera usando quando um CREQ e chamado
-							'''
-							print "o servidor identifiou o clist"
-							numberOfConnectedClients = len(exibidorSockets) + len(emissorSockets)
-							sock.send(make_pkt(7, 65535, getID_F(data), getSQN(data), numberOfConnectedClients))
-							'''
+							# Achando o cliente pra mandar a lista
+							if getID_T(data) in exibidorAssociado:
+								if exibidorAssociado[getID_T(data)] in exibidorSockets:
+									numberOfConnectedClients = len(exibidorSockets) + len(emissorSockets)
+									listOfExhibitors = '\n'.join(str(e) for e in exibidorSockets)
+									listOfEmissor = '\n'.join(str(e) for e in emissorSockets)
+
+									message = "\nNumero de clientes conectados: " + str(numberOfConnectedClients) + "\nLista de clientes: \n" + listOfExhibitors + "\n" + listOfEmissor
+
+									exibidorSockets[exibidorAssociado[getID_T(data)]].send(
+										make_pkt(7, 65535, getID_T(data), getSQN(data), message))
+							else:
+								if getID_T(data) >= 4096 and getID_T(data) <= 8191:
+									numberOfConnectedClients = len(exibidorSockets) + len(emissorSockets)
+									listOfExhibitors = '\n'.join(str(e) for e in exibidorSockets)
+									listOfEmissor = '\n'.join(str(e) for e in emissorSockets)
+
+									message = "\nNumero de clientes conectados: " + str(
+										numberOfConnectedClients) + "\nLista de clientes: \n" + listOfExhibitors + "\n" + listOfEmissor
+
+									exibidorSockets[getID_T(data)].send(
+										make_pkt(7, 65535, getID_T(data), getSQN(data), message))
+								else:
+									# o emissor nao possui exibidor associado
+									sock.send(make_pkt(2, 65535, getID_F(data), getSQN(data), "Exibidor nao associado"))
 
 					else:
 						# remove the socket that's broken

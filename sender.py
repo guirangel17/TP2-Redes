@@ -182,7 +182,7 @@ def chat_client():
 		print 'Error. Sequence number: ' + str(getSQN(handshake)) + ". Message: " + getMSG(handshake)
 
 	if typMsg == 1:
-		print 'Emissor connected to remote host as client ID #' + str(myID) + '. You can start sending messages. \n\n' + 'INSTRUCTIONS \n' + '	- Type the destination ID followed by ":" and the message you want to send. \n' + '		Example: 4097:Hello! \n ' + '	- ID = 0 -> broadcast your message. \n' + ' 	- Message = "CREQ" -> list all clients connected \n' + ' 	- Message = "FLW" -> exit'
+		print 'Emissor connected to remote host as client ID #' + str(myID) + '. You can start sending messages. \n\n' + 'INSTRUCTIONS \n' + '	- Type the destination ID followed by ":" and the message you want to send. \n' + '		Example: 1:Hello! \n ' + '	- ID = 0 -> broadcast your message. \n' + ' 	- Message = "CREQ:ID" -> list all clients connected \n' + ' 	- Message = "FLW" -> exit'
 
 		sys.stdout.write('>> ')
 		sys.stdout.flush()	
@@ -208,14 +208,24 @@ def chat_client():
 					sys.stdout.flush()
 					keyboard = sys.stdin.readline()
 
-					try: 
-						id_to = keyboard.split(":")[0]
-						msg = keyboard.split(":")[1]
-						typ = def_msg_type(msg.strip())
+					if keyboard.rstrip("\n") == "FLW":
 						SQN = SQN + 1
-						s.send(make_pkt(int(typ),int(myID),int(id_to),int(SQN),msg))	
-					except Exception as e:
-						sys.stderr.write('\nIncorrect format. Follow the instructions. \nSeparate the destination id from the message with ":"\n\n>> ')
+						s.send(make_pkt(4, int(myID), 65535, int(SQN), ""))
+
+					elif keyboard.rstrip("\n") == "CREQ":
+						print "creq"
+						SQN = SQN + 1
+						s.send(make_pkt(6, int(myID), 65535, int(SQN), "Quero CLIST BITCHES"))
+
+					else:
+						try:
+							id_to = keyboard.split(":")[0]
+							msg = keyboard.split(":")[1]
+							typ = def_msg_type(msg.strip())
+							SQN = SQN + 1
+							s.send(make_pkt(int(typ),int(myID),int(id_to),int(SQN),msg))
+						except Exception as e:
+							sys.stderr.write('\nIncorrect format. Follow the instructions. \nSeparate the destination id from the message with ":"\n\n>> ')
 
 def def_msg_type (msg):
 	if msg == 'FLW':

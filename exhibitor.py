@@ -140,7 +140,7 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 
 def chat_exhibitor():
 	if len(sys.argv) != 2:
-		print 'Exectuion format: $ python exhibitor.py [IP_ADDRESS]:[PORT]'
+		print 'Execution format: $ python exhibitor.py [IP_ADDRESS]:[PORT]'
 		sys.exit()
    
 	host = sys.argv[1].split(":")[0]

@@ -223,6 +223,19 @@ def chat_server():
 
 									sock.send(make_pkt(1,65535,len(emissorSockets),getSQN(data),""))
 
+						# ID = 4 (FLW)
+						if getTYP(data) == 4:
+							# mandar um OK de volta e terminar a conexao com o cliente
+							sock.send(make_pkt(1, 65535, getID_F(data), getSQN(data), "Conexao encerrada"))
+							# verificar se tem exibidor asociado ao cliente, se houver manda um flw, ai o exibidor termina sua execucao
+
+							if sock in SOCKET_LIST:
+								SOCKET_LIST.remove(sock)
+							sock.close()
+
+							broadcast(server_socket, sock, "Client (%s, %s)" % addr, "is offline\n")
+
+
 						# ID = 5 (MSG)
 						if getTYP(data) == 5:
 							if getID_T(data) == 0:
@@ -230,9 +243,24 @@ def chat_server():
 							else:
 								if exibidorAssociado[getID_T(data)] in exibidorSockets:
 									exibidorSockets[exibidorAssociado[getID_T(data)]].send(make_pkt(getTYP(data), getID_F(data), getID_T(data), getSQN(data), getMSG(data)))
+
 								else:
 									# o emissor nao possui exibidor associado
 									sock.send(make_pkt(2,65535,getID_F(data),getSQN(data),"Exibidor nao associado"))
+
+
+						# ID = 6 (CREQ)
+						if getTYP(data) == 6:
+							print "creq - definir ainda o que fazer"
+
+						# ID = 7 (CLIST)
+						if getTYP(data) == 7:
+							# Só será usando quando um CREQ é chamado
+							'''
+							print "o servidor identifiou o clist"
+							numberOfConnectedClients = len(exibidorSockets) + len(emissorSockets)
+							sock.send(make_pkt(7, 65535, getID_F(data), getSQN(data), numberOfConnectedClients))
+							'''
 
 					else:
 						# remove the socket that's broken

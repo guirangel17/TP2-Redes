@@ -133,9 +133,6 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 			toSend = toSend + chunk
 		i = i + 1
 
-	# print 'Data sent: ' + ' '.join('%02X' % ord(x) for x in toSend)
-	# print ' '.join('%02X' % ord(x) for x in getMSG(toSend))
-
 	return toSend
 
 def chat_exhibitor():
@@ -161,6 +158,7 @@ def chat_exhibitor():
 	# Assim que conecta no servidor, o exibidor tem que enviar uma mensagem OI para saber qual seu numero de identificacao	
 	# O servidor tem id = 2^16-1 = 65535
 	# Envia 0 no id_from pois eh um exibidor
+	SQN = SQN + 1
 	s.send(make_pkt(3,0,65535,SQN,"Novo exibidor"))
 
 	handshake = s.recv(1024)
@@ -187,86 +185,24 @@ def chat_exhibitor():
 					data = sock.recv(4096)
 		
 					if not data:
-						print '\nDisconnected from chat server'
-						sys.exit()
+						continue
 					else:
 						if getTYP(data) == 5:
-							sys.stdout.write(
-								"Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))
+							sys.stdout.write("Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))
 							sys.stdout.flush()
 
+						elif getTYP(data) == 4:
+							sys.stdout.write("Cliente ID # " + str(getID_F(data)) + " finalizou sua conexao. Encerrando este exibidor associado")
+							sys.stdout.flush()
+							SQN = SQN + 1
+							sock.send(make_pkt(1, int(myID), 65535, getSQN(data), "Conexao encerrada"))
+							sys.exit()
 						elif getTYP(data) == 7:
 							sys.stdout.write(getMSG(data))
 							sys.stdout.flush()
 
 				else:
-					sys.stdout.write("Mensagem recebida de cliente ID # " + str(getID_F(data)) + ": " + getMSG(data))
 					sys.stdout.flush()
-
-'''
-
-def check_type(data):
-	msg_type = getTYP(data)
-	
-	# 1 - OK
-	if msg_type == '1':
-		print 'TYP = OK'
-		# se for o primeiro OK, deve conter o identificador desse exibidor
-		# pega o numero de identificacao que veio no pacote -> getID_F()
-		# armazena o ID desse exibidor para ser usado por todas suas operacoes
-		# exibe o ID na tela
-		
-		# se o exibidor ja possuir numero de identificacao, nao faz nada, o OK eh so pra falar que a mnsg chegou ao destinatario
-	
-	# 2 - ERRO
-	elif msg_type  == '2':
-		print 'TYP = ERRO'
-		# informa o numero de sequencia e conteudo da mensagem que nao foi enviada corretamente
-
-	# 3 -OI	
-	elif msg_type == 3: 
-		print 'TYP = OI'
-		# o exibidor nao recebe OI, pode ser excluido
-
-	# 4 -FLW	
-	elif msg_type == 4: 
-		print 'TYP = FLW'
-		# if id_from == 65555 (servidor):
-		# 	envia mensagem OK para o servidor
-		# 	termina conexao do exibidor
-		# if id_from == emissor: 
-		# 	envia mensagem OK para o servidor
-		# 	termina conexao do emissor 
-		# 	exibe mensagem na tela
-
-
-	# 5 - MSG	
-	elif msg_type == 5:
-		print 'TYP = MSG'
-		# exibe id_from 
-		# enquanto (len(msg)):
-		# 	monta mensagem 
-		# exibe mensagem
-		
-	# 6 -CREQ	
-	elif msg_type == 6: 
-		print 'TYP = CREQ'	
-		# nao envolve o exibidor, pode ser deletado
-
-
-	# 7 -CLIST	
-	elif msg_type == 7: 
-		print 'TYP = CLIST'
-		# exibe id_from
-		# enquanto (len(CLIST)):
-		# 	monta CLIST
-		# exibe CLIST
-		# envia OK para servidor
-	
-	else:
-		print ''
-'''
-
 
 if __name__ == "__main__":
 	sys.exit(chat_exhibitor())

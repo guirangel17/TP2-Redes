@@ -133,9 +133,6 @@ def make_pkt(typeMsg, idFrom, idTo, sqNumber, msg):
 			toSend = toSend + chunk
 		i = i + 1
 
-	# print 'Data sent: ' + ' '.join('%02X' % ord(x) for x in toSend)
-	# print ' '.join('%02X' % ord(x) for x in getMSG(toSend))
-
 	return toSend
 
 def chat_client():
@@ -170,8 +167,10 @@ def chat_client():
 	# O servidor tem id = 2^16-1 = 65535
 	# envia 1 no id_from pois eh um emissor
 	if len(sys.argv) < 3:
+		SQN = SQN + 1
 		s.send(make_pkt(3,1,65535,SQN,"Novo emissor"))
 	else:
+		SQN = SQN + 1
 		s.send(make_pkt(3,int(sys.argv[2]),65535,SQN,"Novo emissor"))
 
 	handshake = s.recv(1024)
@@ -237,29 +236,6 @@ def def_msg_type (msg):
 		return 6
 	else:
 		return 5
-
-'''
-def check_TYP(data):
-	msg_type = getTYP(data)
-	
-	# 1 - OK
-	if msg_type == '1':
-		print 'TYP = OK'
-		# se for o primeiro OK, deve conter o identificador desse emissor
-		# pega o numero de identificacao que veio no pacote -> getID_F()
-		# armazena o ID desse emissor para ser usado por todas as mensagens que ele enviar
-		# exibe o ID na tela
-		
-		# se o emissor ja possuir numero de identificacao, nao faz nada, o OK eh so pra falar que a mnsg chegou ao destinatario
-	
-	# 2 - ERRO
-	elif msg_type	== '2':
-		print 'TYP = ERRO'
-		# informa o numero de sequencia e conteudo da mensagem que nao foi enviada corretamente
-
-	else:
-		print ''
-'''
 
 if __name__ == "__main__":
 		sys.exit(chat_client())
